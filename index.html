@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; font-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#e6e6e6">
+<meta name="description" content="Hides faces in a video or photo with a solid square, right on your phone. Nothing is sent over the internet.">
+<title>Anonymizer · hide faces before you post</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2032%2032%22%3E%3Crect%20width=%2232%22%20height=%2232%22%20fill=%22%23e6e6e6%22/%3E%3Crect%20x=%226%22%20y=%226%22%20width=%2220%22%20height=%2220%22%20fill=%22%230b0b0a%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<section id="s-home" class="screen paper">
+  <header class="top"><span class="brand">Anonymizer</span></header>
+  <div class="middle">
+    <div class="head">
+      <h1 class="title">Hide<br>the faces.</h1>
+      <p class="tagline" id="footNote">Nothing leaves your phone.</p>
+    </div>
+    <label class="square pick" id="pickLabel" aria-disabled="true">
+      <input type="file" id="file" accept="video/*,image/*" disabled>
+      <span class="plus" aria-hidden="true">+</span>
+      <span class="pickText" id="pickText">Loading…</span>
+    </label>
+  </div>
+  <p id="homeError" class="error" hidden></p>
+  <footer class="foot">
+    <label class="fast"><input type="checkbox" id="fast"> Fast mode (may miss very small faces)</label>
+    <nav class="links">
+      <a href="verify.html">Verify Anonymizer</a>
+      <a href="https://github.com/yakuzaax/anonymizer">Source code</a>
+      <a href="legal.html">Legal notice</a>
+    </nav>
+    <div class="meta"><span>NovaPulse Studio · NVP suite</span><span id="version"></span></div>
+  </footer>
+</section>
+
+<section id="s-scan" class="screen paper" hidden>
+  <header class="top"><span class="brand">Anonymizer</span></header>
+  <div class="middle">
+    <span class="big" id="scanText">0%</span>
+    <div class="square frame" id="scanFrame">
+      <span class="tag">Current frame</span>
+      <span class="fill up" id="scanBar"></span>
+    </div>
+  </div>
+  <button class="link" id="scanCancel" type="button">Cancel</button>
+</section>
+
+<section id="s-review" class="screen ink" hidden>
+  <p class="banner" id="hint">Tap a face to hide or unhide its mask.</p>
+  <div class="stage" id="stage">
+    <canvas id="view"></canvas>
+    <button class="link small" id="restoreAll" type="button" hidden></button>
+    <div class="maskBar" id="maskBar" hidden>
+      <button type="button" id="mMinus" title="Smaller">−</button>
+      <button type="button" id="mPlus" title="Larger">+</button>
+      <button type="button" id="mAll" title="Whole video" class="videoOnly">∞</button>
+      <button type="button" id="mDelete" title="Remove" class="sep">×</button>
+    </div>
+  </div>
+  <div class="deck">
+    <div class="timeline videoOnly" id="timeline">
+      <button type="button" id="prev" class="step" title="Previous frame">‹</button>
+      <div class="track"><canvas id="tracks"></canvas><input type="range" id="time" min="0" max="1" step="0.01" value="0" aria-label="Position in video"></div>
+      <button type="button" id="next" class="step" title="Next frame">›</button>
+    </div>
+    <div class="row">
+      <button type="button" id="play" class="ctl videoOnly" title="Play">▶</button>
+      <button type="button" id="styleBtn" class="ctl" title="Mask style"><span class="sq"></span></button>
+      <button type="button" id="audioBtn" class="ctl mono videoOnly on" title="Keep sound">SOUND</button>
+      <button type="button" id="export" class="go">Export</button>
+    </div>
+    <p class="note videoOnly" id="audioNote">Sound kept. A voice can identify someone too.</p>
+  </div>
+</section>
+
+<section id="s-export" class="screen paper" hidden>
+  <header class="top"><span class="brand">Anonymizer</span></header>
+  <div class="middle">
+    <span class="big" id="exportPct">0%</span>
+    <div class="square frame" id="exportFrame">
+      <span class="fill side" id="exportBar"></span>
+    </div>
+    <span class="strong">Keep the screen on.</span>
+    <span class="note" id="exportText"></span>
+  </div>
+  <button class="link" id="exportCancel" type="button">Cancel</button>
+</section>
+
+<section id="s-done" class="screen paper" hidden>
+  <header class="top"><span class="brand">Anonymizer</span></header>
+  <div class="middle">
+    <span class="big" id="doneTitle">Ready.</span>
+    <div class="square frame dark">
+      <video id="result" controls playsinline></video>
+      <img id="resultImg" alt="Masked photo" hidden>
+    </div>
+    <span class="strong" id="doneCheck">Watch all of it before posting.</span>
+    <span class="note">The mask hides faces, not clothes, tattoos, voice or place. No tool protects 100%.</span>
+  </div>
+  <div class="bottom">
+    <a class="cta" id="download">Download<span>↓</span></a>
+    <div class="links">
+      <button class="link" id="back" type="button">Edit masks</button>
+      <button class="link" id="share" type="button" hidden>Save or share</button>
+      <button class="link" id="restart2" type="button">Another file</button>
+    </div>
+    <span class="note" id="doneInfo"></span>
+  </div>
+</section>
+
+<p id="fatal" class="error" hidden></p>
+<p id="stats" class="note" hidden></p>
+
+<video id="src" class="src" playsinline muted preload="auto"></video>
+<script type="module" src="app.js"></script>
+</body>
+</html>

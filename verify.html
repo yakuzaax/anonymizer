@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#e6e6e6">
+<meta name="description" content="How to check for yourself that Anonymizer sends nothing and keeps no trace of faces.">
+<title>Anonymizer · verify Anonymizer</title>
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="paper">
+<main class="verif">
+  <header class="top"><a class="brand" href="./">Anonymizer</a></header>
+
+  <h1 class="title">Check<br>it<br>yourself.</h1>
+  <p class="strong">You are right to distrust a tool that handles videos of people. No need to believe us: everything can be checked.</p>
+
+  <section>
+    <h2>What Anonymizer does</h2>
+    <ul class="facts">
+      <li><b>On your device.</b> The video is analysed in the browser. It is sent nowhere.</li>
+      <li><b>A solid black square.</b> Painted on the frame before it is saved again: the face is not blurred or covered, it is no longer in the file.</li>
+      <li><b>No traces.</b> Location, date and phone model, often kept in the file, are removed.</li>
+      <li><b>No account.</b> No ads, no analytics. Like any site, the host (Cloudflare) sees who connects to anonymizer.nvp.qzz.io, never the videos.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Without installing anything</h2>
+    <div class="proof">
+      <span class="n">1</span>
+      <h3>Airplane mode</h3>
+      <p>Open anonymizer.nvp.qzz.io, wait for it to load, then switch to airplane mode. Mask a video and save it: everything works offline, so nothing can leave.</p>
+    </div>
+    <div class="proof">
+      <span class="n">2</span>
+      <h3>The result</h3>
+      <p>Before publishing, watch the masked video in full, frame by frame where there are crowds.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>If you can code</h2>
+    <ul class="facts">
+      <li><b>Public code.</b> Free licence: <a href="https://github.com/yakuzaax/anonymizer">github.com/yakuzaax/anonymizer</a>. The site serves the same readable files, nothing hidden.</li>
+      <li><b>No trace of the face.</b> <code>test/test-no-trace.mjs</code> takes two videos identical except for the faces and applies the same masks: the output files are byte-for-byte identical. No watermark can lead back to the face.</li>
+      <li><b>Nothing sent.</b> The page forbids the browser from connecting to any site other than anonymizer.nvp.qzz.io.</li>
+      <li><b>Original libraries.</b> ONNX Runtime and Mediabunny: <code>test/verify-vendor.sh</code> checks they match the official releases. The detection model is YuNet, retrained to see better at night: the recipe is public.</li>
+    </ul>
+  </section>
+
+  <section class="limits">
+    <h2>What Anonymizer does not do</h2>
+    <p>No tool finds every face: a profile, a partly hidden or very small face can be missed. Tap the image to add a mask by hand.</p>
+    <p>The square hides the face, not clothes, tattoos, gait, place or voice. Sound is kept by default: turn it off with the “Sound” button.</p>
+  </section>
+
+  <a class="cta" href="./">Mask a video<span>→</span></a>
+</main>
+</body>
+</html>

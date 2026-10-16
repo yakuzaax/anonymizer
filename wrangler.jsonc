@@ -1,0 +1,15 @@
+{
+  "name": "anonymizer",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+
+    "not_found_handling": "404-page"
+  },
+  "routes": [
+    { "pattern": "anonymizer.nvp.qzz.io", "custom_domain": true }
+  ],
+
+  "workers_dev": false,
+  "preview_urls": false
+}
