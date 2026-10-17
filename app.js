@@ -16,7 +16,7 @@ const JUDGE = { confirm: MIN_SCORE };
 const RULE = { min: MIN_SCORE, small: SMALL_SCORE, big: BIG_SCORE, from: BIG_FROM, to: BIG_TO };
 
 const LOW_EVERY = 3;
-const GROW = 1.3;
+const MARGINS = [1.15, 1.3, 1.6];
 const ANALYSIS_FPS = 30;
 const HOLD_FRAMES = 4;
 const KEEP_SCORE = 0.15;
@@ -30,14 +30,13 @@ const TRACK = {
   hold: HOLD_FRAMES,
   unionMax: 4,
   minReach: 0.02,
-
 };
 const DET_SIDE_DEEP = 1920;
 const DET_SIDE = 1280;
 const MAX_SIDE = 1920;
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-17.0';
+const VERSION = '0.6.0';
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -64,6 +63,8 @@ const S = {
   nextId: 1,
   t: 0,
   style: 'black',
+  margin: 1,
+  split: null,
   emoji: '😶',
   keepAudio: true,
   job: null,
@@ -73,6 +74,8 @@ const S = {
   srcUrl: null,
   resultUrl: null,
   resultFile: null,
+  previewUrl: null,
+  found: [],
   audioCtx: null,
   audioNode: null,
   wake: null,
@@ -120,8 +123,11 @@ async function keepAwake(on) {
   try {
     if (on && navigator.wakeLock) S.wake = await navigator.wakeLock.request('screen');
     if (!on && S.wake) { await S.wake.release(); S.wake = null; }
-  } catch {  }
+  } catch {}
 }
+
+let shownAt = performance.now();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) shownAt = performance.now(); });
 
 function startWorker() {
   return new Promise((resolve) => {
@@ -143,8 +149,6 @@ function startWorker() {
       pending.clear();
     };
 
-    let shownAt = performance.now();
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) shownAt = performance.now(); });
     const watch = (id) => setTimeout(() => {
       const p = pending.get(id);
       if (!p) return;
@@ -171,7 +175,7 @@ function startWorker() {
       clearTimeout(p.timer);
       if (m.type === 'done') p.ok(m.boxes); else p.ko(new Error(m.message));
     };
-    w.onerror = (e) => { clearTimeout(giveUp); resolve(null); breakDown('worker failed'); };
+    w.onerror = () => { clearTimeout(giveUp); resolve(null); breakDown('worker failed'); };
     w.postMessage({ type: 'init' });
   });
 }
@@ -194,7 +198,10 @@ async function loadFastExport() {
   try {
     MB = await import('./vendor/mediabunny/mediabunny.min.mjs');
 
-    S.fast = (await VideoEncoder.isConfigSupported({ codec: 'avc1.42001f', width: 1280, height: 720, bitrate: 4e6 })).supported === true;
+    for (const [codec, id] of [['avc', 'avc1.42001f'], ['vp9', 'vp09.00.31.08']]) {
+      const { supported } = await VideoEncoder.isConfigSupported({ codec: id, width: 1280, height: 720, bitrate: 4e6 });
+      if (supported) { S.fast = codec; break; }
+    }
   } catch (e) {
     console.error(e);
   }
@@ -316,11 +323,10 @@ async function loadFile(file) {
         await frame.finally(() => clearTimeout(late));
       }
       if (!Number.isFinite(video.duration)) {
-
         video.currentTime = 1e7;
         await once(video, 'durationchange', null, 5000).catch(() => {});
       }
-      if (!Number.isFinite(video.duration) || video.duration <= 0) throw new Error('illisible');
+      if (!Number.isFinite(video.duration) || video.duration <= 0) throw new Error('unreadable');
       w = video.videoWidth;
       h = video.videoHeight;
       S.duration = video.duration;
@@ -334,10 +340,10 @@ async function loadFile(file) {
             S.first = Math.max(0, (await track.getFirstTimestamp()) - S.start);
           }
           input.dispose();
-        } catch {  }
+        } catch {}
       }
     }
-    if (!w || !h) throw new Error('illisible');
+    if (!w || !h) throw new Error('unreadable');
   } catch (e) {
     fail($('homeError'), "Your browser cannot read this file. Try another browser, or save it in another format.");
     return;
@@ -442,14 +448,12 @@ async function scan() {
   if (job.cancelled) return;
   S.job = null;
   if (error || results.some((r) => !r)) {
-
     console.error(error || 'missing frames');
     goHome();
     fail($('homeError'), "Analysis failed in this browser. Try an up-to-date Chrome or Safari.");
     return;
   }
   if (!sawPicture) {
-
     goHome();
     fail($('homeError'), "This browser cannot display this video's frames, so it cannot find the faces. Try an up-to-date Chrome or Safari.");
     return;
@@ -476,7 +480,7 @@ async function scanByPlayback(job, total, submit, keepForPreview, failed) {
   let paused = false, ended = false, stop = false;
 
   let rate = 1, sinceSkip = 0;
-  const setRate = (r) => { rate = clamp(r, 0.25, 1); try { video.playbackRate = rate; } catch {  } };
+  const setRate = (r) => { rate = clamp(r, 0.25, 1); try { video.playbackRate = rate; } catch {} };
 
   const flush = (end) => {
     if (!prev) return;
@@ -492,7 +496,6 @@ async function scanByPlayback(job, total, submit, keepForPreview, failed) {
     lastSeen = performance.now();
     const t = meta.mediaTime - S.start;
     if (t > lastTime) {
-
       const skipped = lastPresented >= 0 && (meta.presentedFrames - lastPresented > 1 || (prev && t - prev.t > frameDur * 1.5));
       flush(skipped ? Math.min(t, (prev ? prev.t : t) + frameDur * 1.2) : t);
 
@@ -525,7 +528,7 @@ async function scanByPlayback(job, total, submit, keepForPreview, failed) {
     await video.play();
 
     while (!ended && !job.cancelled && !failed() && (paused || document.hidden || performance.now() - lastSeen < 4000)) await sleep(50);
-  } catch {  }
+  } catch {}
   stop = true;
   clearInterval(timer);
   video.removeEventListener('ended', onEnded);
@@ -538,7 +541,8 @@ async function scanByPlayback(job, total, submit, keepForPreview, failed) {
 
 function grow(b) {
   const edge = Math.max(4, Math.min(S.W, S.H) / 90);
-  const w = b.w * GROW + edge, h = b.h * GROW + edge;
+  const k = MARGINS[S.margin];
+  const w = b.w * k + edge, h = b.h * k + edge;
   return { x: b.x + b.w / 2 - w / 2, y: b.y + b.h / 2 - h / 2, w, h };
 }
 
@@ -550,6 +554,28 @@ function union(a, b) {
 }
 
 const lerp = (a, b, k) => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, w: a.w + (b.w - a.w) * k, h: a.h + (b.h - a.h) * k });
+
+function extendBackward(tracks, results) {
+  const used = new Set();
+  for (const t of tracks) for (const d of t.dets.values()) used.add(d);
+  const floor = Math.min(S.W, S.H) * TRACK.minReach;
+  for (const t of tracks) {
+    const first = Math.min(...t.dets.keys());
+    let ref = t.dets.get(first), refIdx = first, added = false;
+    for (let i = first - 1; i >= 0 && refIdx - i <= TRACK.gap; i--) {
+      let best = null, bestDist = TRACK.lowMatch;
+      for (const d of results[i] || []) {
+        if (used.has(d) || d.s < SMALL_SCORE) continue;
+        if (Math.max(ref.w / d.w, d.w / ref.w) > TRACK.lowGrow) continue;
+        const reach = Math.max((ref.w + d.w) / 2, floor) * Math.min(3, 1 + 0.4 * (refIdx - i - 1));
+        const dist = Math.hypot(ref.x + ref.w / 2 - d.x - d.w / 2, ref.y + ref.h / 2 - d.y - d.h / 2) / reach;
+        if (dist < bestDist) { best = d; bestDist = dist; }
+      }
+      if (best) { used.add(best); t.dets.set(i, best); ref = best; refIdx = i; added = true; }
+    }
+    if (added) t.dets = new Map([...t.dets].sort((a, b) => a[0] - b[0]));
+  }
+}
 
 function buildTracks(results) {
   const N = results.length;
@@ -600,8 +626,16 @@ function buildTracks(results) {
     }
   }
 
+  extendBackward(tracks, results);
+
+  S.tracks = tracks;
+  layoutFrames();
+}
+
+function layoutFrames() {
+  const N = S.raw.length;
   const frames = Array.from({ length: N }, () => []);
-  for (const t of tracks) {
+  for (const t of S.tracks) {
     const idx = [...t.dets.keys()];
     const first = idx[0], last = idx[idx.length - 1];
     const a = Math.max(0, first - TRACK.hold), b = Math.min(N - 1, last + TRACK.hold);
@@ -624,7 +658,6 @@ function buildTracks(results) {
       else for (const r of near) frames[j].push({ ...grow(r), track: t });
     }
   }
-  S.tracks = tracks;
   S.frames = frames;
 }
 
@@ -645,20 +678,53 @@ function toggleTrack(tr, j) {
 const manualAt = (t) => S.manual.filter((m) => t >= m.t0 - 1e-3 && t <= m.t1 + 1e-3);
 const inside = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 
+const EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+
+const scratch = document.createElement('canvas');
+const scratchCtx = scratch.getContext('2d', { willReadFrequently: false });
+
+function blurRect(ctx, r) {
+  const x = Math.max(0, Math.floor(r.x)), y = Math.max(0, Math.floor(r.y));
+  const w = Math.min(ctx.canvas.width - x, Math.ceil(r.w) + 1), h = Math.min(ctx.canvas.height - y, Math.ceil(r.h) + 1);
+  if (w < 1 || h < 1) return;
+  const cols = w <= h ? 6 : clamp(Math.round(6 * w / h), 6, 12);
+  const rows = h <= w ? 6 : clamp(Math.round(6 * h / w), 6, 12);
+  if (scratch.width < w) scratch.width = w;
+  if (scratch.height < h) scratch.height = h;
+  scratchCtx.imageSmoothingEnabled = true;
+  scratchCtx.imageSmoothingQuality = 'high';
+  scratchCtx.clearRect(0, 0, scratch.width, scratch.height);
+  scratchCtx.drawImage(ctx.canvas, x, y, w, h, 0, 0, w, h);
+  let cw = w, ch = h;
+  while (cw / 2 >= cols && ch / 2 >= rows) {
+    const nw = Math.ceil(cw / 2), nh = Math.ceil(ch / 2);
+    scratchCtx.drawImage(scratch, 0, 0, cw, ch, 0, 0, nw, nh);
+    cw = nw;
+    ch = nh;
+  }
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(scratch, 0, 0, cw, ch, x, y, w, h);
+}
+
 function paint(ctx, t, edit) {
   const j = frameIndex(t);
   const auto = S.frames[j] || [];
   const rects = [...auto.filter((b) => !isOff(b.track, j)), ...manualAt(t).map(manualRect)];
 
-  ctx.fillStyle = '#000';
-  for (const r of rects) ctx.fillRect(Math.floor(r.x), Math.floor(r.y), Math.ceil(r.w) + 1, Math.ceil(r.h) + 1);
+  if (S.style === 'blur') {
+    for (const r of rects) blurRect(ctx, r);
+  } else {
+    ctx.fillStyle = '#000';
+    for (const r of rects) ctx.fillRect(Math.floor(r.x), Math.floor(r.y), Math.ceil(r.w) + 1, Math.ceil(r.h) + 1);
+  }
 
   if (S.style === 'emoji') {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const r of rects) {
       const s = Math.min(r.w, r.h);
-      ctx.font = `${Math.round(s * 0.82)}px serif`;
+      ctx.font = `${Math.round(s * 0.82)}px ${EMOJI_FONT}`;
       ctx.fillText(S.emoji, r.x + r.w / 2, r.y + r.h / 2 + s * 0.06);
     }
   }
@@ -681,11 +747,11 @@ function paint(ctx, t, edit) {
   ctx.setLineDash([]);
 }
 
-let seekBusy = false, seekNext = null;
+let seekBusy = false, seekNext = null, seekTarget = 0;
 
 async function goTo(t) {
   if (isPhoto()) { S.t = 0; renderReview(); return; }
-  seekNext = clamp(t, 0, Math.max(0, S.duration - 0.001));
+  seekNext = seekTarget = clamp(t, 0, Math.max(0, S.duration - 0.001));
   if (seekBusy) return;
   seekBusy = true;
   while (seekNext !== null) {
@@ -698,21 +764,56 @@ async function goTo(t) {
   seekBusy = false;
 }
 
+function drawSplit() {
+  const x = Math.round(S.split * S.W);
+  vctx.save();
+  vctx.beginPath();
+  vctx.rect(x, 0, S.W - x, S.H);
+  vctx.clip();
+  drawSource(vctx);
+  vctx.restore();
+  const lw = Math.max(3, Math.min(S.W, S.H) / 180);
+  vctx.fillStyle = '#fff';
+  vctx.fillRect(x - lw / 2, 0, lw, S.H);
+  const size = Math.max(14, Math.round(Math.min(S.W, S.H) / 32));
+  vctx.font = `700 ${size}px sans-serif`;
+  vctx.textBaseline = 'top';
+  for (const [text, left] of [['MASKED', true], ['ORIGINAL', false]]) {
+    const w = vctx.measureText(text).width + size;
+    const bx = left ? x - lw - w - size / 2 : x + lw + size / 2;
+    if (bx < 0 || bx + w > S.W) continue;
+    vctx.fillStyle = '#000';
+    vctx.fillRect(bx, size / 2, w, size * 1.6);
+    vctx.fillStyle = '#fff';
+    vctx.fillText(text, bx + size / 2, size / 2 + size * 0.3);
+  }
+}
+
 function renderReview() {
   drawSource(vctx);
-  paint(vctx, S.t, true);
+  paint(vctx, S.t, S.split == null);
+  if (S.split != null) drawSplit();
   $('time').value = S.t;
   drawTimeline();
   refreshPanels();
 }
 
+function updateHint() {
+  const verb = matchMedia('(pointer: fine)').matches ? 'Click' : 'Tap';
+  if (S.split != null) $('hint').textContent = 'Drag to compare. Masked on the left, original on the right.';
+  else $('hint').textContent = hasMasks() ? `${verb} a face to hide or unhide its mask. ${verb} elsewhere to add one.` : `No face found. ${verb} where a face is to add a mask.`;
+}
+
+const hasMasks = () => S.manual.length > 0 || S.frames.some((f, j) => f.some((b) => !isOff(b.track, j)));
+
 function openReview(t) {
   show('review');
+  S.emptyOk = false;
   const time = $('time');
   time.max = S.duration;
   time.step = 1 / S.fps;
   for (const el of document.querySelectorAll('.videoOnly')) el.hidden = isPhoto();
-  $('hint').textContent = (matchMedia('(pointer: fine)').matches ? 'Click' : 'Tap') + ' a face to hide or unhide its mask.';
+  updateHint();
   $('stats').hidden = !DEBUG || isPhoto();
   if (DEBUG && !isPhoto()) {
     const n = S.frames.length;
@@ -851,6 +952,13 @@ view.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   stopPlay();
   const p = canvasPoint(e);
+  if (S.split != null) {
+    drag = { split: true };
+    view.setPointerCapture(e.pointerId);
+    S.split = clamp(p.x, 0, 1);
+    renderReview();
+    return;
+  }
   if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) { deselect(); return; }
   const px = p.x * S.W, py = p.y * S.H;
 
@@ -878,6 +986,11 @@ view.addEventListener('pointerdown', (e) => {
 view.addEventListener('pointermove', (e) => {
   if (!drag) return;
   const p = canvasPoint(e);
+  if (drag.split) {
+    S.split = clamp(p.x, 0, 1);
+    renderReview();
+    return;
+  }
   drag.m.cx = clamp(p.x + drag.dx, 0, 1);
   drag.m.cy = clamp(p.y + drag.dy, 0, 1);
   renderReview();
@@ -907,28 +1020,136 @@ $('restoreAll').onclick = () => {
 };
 
 $('time').addEventListener('input', (e) => { stopPlay(); goTo(+e.target.value); });
-$('prev').onclick = () => { stopPlay(); goTo(S.t - 1 / S.fps); };
-$('next').onclick = () => { stopPlay(); goTo(S.t + 1 / S.fps); };
+const stepBy = (n) => { stopPlay(); goTo((seekBusy ? seekTarget : S.t) + n / S.fps); };
+$('prev').onclick = () => stepBy(-1);
+$('next').onclick = () => stepBy(1);
 $('play').onclick = togglePlay;
 
-const STYLES = [['black', ''], ['emoji', '😶'], ['emoji', '💀'], ['emoji', '🐸']];
-$('styleBtn').onclick = () => {
-  const i = STYLES.findIndex(([st, em]) => st === S.style && (st === 'black' || em === S.emoji));
-  const [st, em] = STYLES[(i + 1) % STYLES.length];
-  S.style = st;
-  if (em) S.emoji = em;
-  $('styleBtn').innerHTML = st === 'black' ? '<span class="sq"></span>' : em;
+for (const b of document.querySelectorAll('[data-margin]')) {
+  b.onclick = () => {
+    S.margin = +b.dataset.margin;
+    for (const o of document.querySelectorAll('[data-margin]')) o.classList.toggle('on', o === b);
+    layoutFrames();
+    renderReview();
+  };
+}
+
+$('splitBtn').onclick = () => {
+  stopPlay();
+  S.split = S.split == null ? 0.5 : null;
+  S.sel = null;
+  $('splitBtn').classList.toggle('on', S.split != null);
+  $('splitBtn').setAttribute('aria-pressed', String(S.split != null));
+  updateHint();
   renderReview();
 };
+
+const EMOJIS = ['😶', '😎', '🤡', '👻', '💀', '🐸', '🐱', '🐶', '🐵', '🦊', '🐼', '🐰', '🦆', '🦄', '🤖', '👽', '🥸', '🙈', '😷', '🥷', '🌚', '🔥', '⭐', '🎭'];
+const panel = $('stylePanel');
+
+function pickStyle(style, emoji) {
+  S.style = style;
+  if (emoji) S.emoji = emoji;
+  $('styleBtn').innerHTML = style === 'emoji' ? S.emoji : `<span class="${style === 'blur' ? 'blurIcon' : 'sq'}"></span>`;
+  for (const b of panel.children) b.classList.toggle('on', b.dataset.kind === style && (style !== 'emoji' || b.dataset.emoji === S.emoji));
+  $('styleNote').hidden = style !== 'blur';
+  panel.hidden = true;
+  $('styleBtn').setAttribute('aria-expanded', 'false');
+  renderReview();
+}
+
+const choices = [{ kind: 'black', label: 'Solid black square', icon: 'sq' }, { kind: 'blur', label: 'Blur', icon: 'blurIcon' }, ...EMOJIS.map((emoji) => ({ kind: 'emoji', emoji, label: 'Mask with ' + emoji }))];
+for (const c of choices) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'em' + (c.kind === 'black' ? ' on' : '');
+  b.dataset.kind = c.kind;
+  b.setAttribute('aria-label', c.label);
+  if (c.emoji) { b.dataset.emoji = c.emoji; b.textContent = c.emoji; }
+  else b.innerHTML = `<span class="${c.icon}"></span>`;
+  b.onclick = () => pickStyle(c.kind, c.emoji);
+  panel.append(b);
+}
+
+$('styleBtn').onclick = () => {
+  panel.hidden = !panel.hidden;
+  $('styleBtn').setAttribute('aria-expanded', String(!panel.hidden));
+};
+document.addEventListener('pointerdown', (e) => {
+  if (!reportPanel.hidden && !reportPanel.contains(e.target) && e.target !== $('reportBtn')) closeReport();
+  if (!panel.hidden && !panel.contains(e.target) && e.target !== $('styleBtn') && !$('styleBtn').contains(e.target)) { panel.hidden = true; $('styleBtn').setAttribute('aria-expanded', 'false'); } });
+const reportPanel = $('reportPanel');
+const clock = (sec) => `${Math.floor(sec / 60)}:${(sec % 60).toFixed(1).padStart(4, '0')}`;
+
+function isWeak(t) {
+  const best = Math.max(...[...t.dets.values()].map((d) => d.s));
+  return best < 0.5 || t.dets.size < Math.min(6, S.frames.length);
+}
+
+function reportRows() {
+  const weak = S.tracks.filter(isWeak);
+  const rows = [['Faces tracked', S.tracks.length + (weak.length ? ` (${weak.length} to double-check)` : '')]];
+  rows.push(['Masks added by hand', String(S.manual.length)], ['Faces edited', String(S.tracks.filter((t) => t.off.length).length)]);
+  if (isPhoto()) rows.push(['Picture', `${S.W} × ${S.H}`]);
+  else {
+    const covered = S.frames.reduce((n, f, j) => n + (f.some((b) => !isOff(b.track, j)) || manualAt(j / S.fps).length ? 1 : 0), 0);
+    rows.push(['Frames with a mask', `${covered} of ${S.frames.length} (${Math.round(100 * covered / Math.max(1, S.frames.length))}%)`]);
+    rows.push(['Analysed', `${S.frames.length} frames at ${S.fps} per second`]);
+  }
+  rows.push(['Margin', ['Tight', 'Normal', 'Wide'][S.margin]], ['Style', S.style === 'emoji' ? 'Emoji ' + S.emoji : S.style === 'blur' ? 'Blur' : 'Black square']);
+  if (!isPhoto()) rows.push(['Sound', S.keepAudio ? 'kept' : 'off']);
+  return rows;
+}
+
+function fillReport(list) {
+  list.replaceChildren();
+  for (const [label, value] of reportRows()) {
+    const dt = document.createElement('dt'), dd = document.createElement('dd');
+    dt.textContent = label;
+    dd.textContent = value;
+    list.append(dt, dd);
+  }
+}
+
+function openReport() {
+  fillReport($('reportList'));
+  const jump = $('reportJump');
+  jump.replaceChildren();
+  if (!isPhoto()) {
+    S.tracks.forEach((t, i) => {
+      if (!isWeak(t)) return;
+      const first = Math.min(...t.dets.keys());
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tool';
+      b.textContent = `Face ${i + 1} · ${clock(first / S.fps)}`;
+      b.onclick = () => { closeReport(); stopPlay(); goTo(first / S.fps); };
+      jump.append(b);
+    });
+  }
+  jump.hidden = !jump.children.length;
+  reportPanel.hidden = false;
+  $('reportBtn').setAttribute('aria-expanded', 'true');
+}
+
+function closeReport() {
+  reportPanel.hidden = true;
+  $('reportBtn').setAttribute('aria-expanded', 'false');
+}
+
+$('reportBtn').onclick = () => (reportPanel.hidden ? openReport() : closeReport());
+
 $('audioBtn').onclick = () => {
   S.keepAudio = !S.keepAudio;
   $('audioBtn').classList.toggle('on', S.keepAudio);
   $('audioNote').textContent = S.keepAudio ? 'Sound kept. A voice can identify someone too.' : 'Sound off: the video will be silent.';
 };
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !reportPanel.hidden) { closeReport(); return; }
+  if (e.key === 'Escape' && !panel.hidden) { panel.hidden = true; $('styleBtn').setAttribute('aria-expanded', 'false'); return; }
   if ($('s-review').hidden || isPhoto() || e.target.tagName === 'INPUT') return;
-  if (e.key === 'ArrowLeft') { e.preventDefault(); stopPlay(); goTo(S.t - 1 / S.fps); }
-  else if (e.key === 'ArrowRight') { e.preventDefault(); stopPlay(); goTo(S.t + 1 / S.fps); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); stepBy(-1); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); stepBy(1); }
   else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
 });
 window.addEventListener('resize', () => { if (!$('s-review').hidden) { sizeTimeline(); renderReview(); } });
@@ -955,6 +1176,7 @@ async function finish(blob, name, info) {
   $('download').href = S.resultUrl;
   $('download').download = name;
   $('share').hidden = !(navigator.canShare && navigator.canShare({ files: [S.resultFile] }));
+  fillReport($('doneReport'));
   $('doneTitle').textContent = 'Ready.';
   $('doneCheck').textContent = isPhoto() ? 'Look at it closely before posting.' : 'Watch all of it before posting.';
   $('doneInfo').textContent = `${info}, ${blob.size >= 1e6 ? (blob.size / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(blob.size / 1e3)) + ' KB'}.`;
@@ -970,7 +1192,7 @@ async function exportPhoto() {
   paint(vctx, 0, false);
   const blob = await new Promise((r) => view.toBlob(r, 'image/jpeg', 0.92));
   if (!blob) { fail($('fatal'), "This browser could not create the photo."); return; }
-  finish(blob, 'masked-photo.jpg', 'JPEG file');
+  await finish(blob, 'masked-photo.jpg', 'JPEG file');
 }
 
 async function scrubMp4Dates(blob) {
@@ -1016,10 +1238,12 @@ async function exportFast() {
   $('exportText').textContent = '';
   await keepAwake(true);
 
-  let made = null, audioKept = false, input = null;
+  let made = null, audioKept = false, hasAudio = true, input = null;
+  const mp4 = S.fast === 'avc';
   try {
     input = new MB.Input({ source: new MB.BlobSource(S.file), formats: MB.ALL_FORMATS });
-    const output = new MB.Output({ format: new MB.Mp4OutputFormat({ fastStart: 'in-memory' }), target: new MB.BufferTarget() });
+    hasAudio = !!(await input.getPrimaryAudioTrack());
+    const output = new MB.Output({ format: mp4 ? new MB.Mp4OutputFormat({ fastStart: 'in-memory' }) : new MB.WebMOutputFormat(), target: new MB.BufferTarget() });
     const canvas = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(S.W, S.H) : Object.assign(document.createElement('canvas'), { width: S.W, height: S.H });
     const ctx = canvas.getContext('2d');
     let first = null;
@@ -1027,16 +1251,14 @@ async function exportFast() {
       input,
       output,
       video: {
-
         forceTranscode: true,
         allowTransformationMetadata: false,
         width: S.W,
         height: S.H,
         fit: 'fill',
-        codec: 'avc',
+        codec: S.fast,
         bitrate: clamp(S.W * S.H * 4, 2_500_000, 10_000_000),
         process: (sample) => {
-
           if (first == null) first = sample.timestamp;
           sample.draw(ctx, 0, 0, S.W, S.H);
           paint(ctx, sample.timestamp - first + S.first, false);
@@ -1059,18 +1281,18 @@ async function exportFast() {
     };
     job.cancel = () => conversion.cancel();
     await conversion.execute();
-    made = new Blob([output.target.buffer], { type: 'video/mp4' });
+    made = new Blob([output.target.buffer], { type: mp4 ? 'video/mp4' : 'video/webm' });
   } catch (e) {
     if (!job.cancelled) console.error(e);
   }
-  if (input) try { input.dispose(); } catch {  }
+  if (input) try { input.dispose(); } catch {}
   S.job = null;
   await keepAwake(false);
 
-  if (job.cancelled) { openReview(0); return true; }
+  if (job.cancelled) { openReview(S.t); return true; }
   if (!made || !made.size) return false;
-  const sound = audioKept ? 'with sound' : S.keepAudio ? 'without sound (it could not be copied)' : 'without sound';
-  finish(await scrubMp4Dates(made), 'video-masquee.mp4', `MP4 file, ${sound}, fast export`);
+  const sound = audioKept ? 'with sound' : !hasAudio ? 'no sound in the original' : S.keepAudio ? 'without sound (it could not be copied)' : 'without sound';
+  await finish(mp4 ? await scrubMp4Dates(made) : made, 'masked-video.' + (mp4 ? 'mp4' : 'webm'), `${mp4 ? 'MP4' : 'WebM'} file, ${sound}, fast export`);
   return true;
 }
 
@@ -1081,7 +1303,7 @@ async function exportVideo() {
     if (await exportFast()) return;
 
     S.fast = false;
-    openReview(0);
+    openReview(S.t);
     fail($('fatal'), "Fast export did not work here. Tap Export again: the video will be made at normal speed.");
     return;
   }
@@ -1127,12 +1349,11 @@ async function exportVideo() {
 
   const sought = await seekSure(0);
   if (job.cancelled || !sought) {
-
     if (audioDest) S.audioNode.disconnect(audioDest);
     video.muted = true;
     S.job = null;
     await keepAwake(false);
-    openReview(0);
+    openReview(S.t);
     if (!job.cancelled) fail($('fatal'), "Creating the video failed in this browser. Try an up-to-date Chrome or Safari.");
     return;
   }
@@ -1190,9 +1411,9 @@ async function exportVideo() {
   S.job = null;
   await keepAwake(false);
 
-  if (job.cancelled) { openReview(0); return; }
+  if (job.cancelled) { openReview(S.t); return; }
   if (failed || !chunks.length) {
-    openReview(0);
+    openReview(S.t);
     fail($('fatal'), "Creating the video failed in this browser. Try an up-to-date Chrome or Safari.");
     return;
   }
@@ -1200,12 +1421,19 @@ async function exportVideo() {
   const type = (rec.mimeType || mime).split(';')[0];
   const mp4 = type.includes('mp4');
   const made = new Blob(chunks, { type });
-  finish(mp4 ? await scrubMp4Dates(made) : made, 'masked-video.' + (mp4 ? 'mp4' : 'webm'), `${mp4 ? 'MP4' : 'WebM'} file${audioDest ? ', with sound' : ', without sound'}`);
+  await finish(mp4 ? await scrubMp4Dates(made) : made, 'masked-video.' + (mp4 ? 'mp4' : 'webm'), `${mp4 ? 'MP4' : 'WebM'} file${audioDest ? ', with sound' : ', without sound'}`);
 }
 
-$('export').onclick = () => (isPhoto() ? exportPhoto() : exportVideo());
+$('export').onclick = () => {
+  if (!hasMasks() && !S.emptyOk) {
+    S.emptyOk = true;
+    fail($('fatal'), 'There is no mask on this file. Tap Export again to save it unchanged.');
+    return;
+  }
+  return isPhoto() ? exportPhoto() : exportVideo();
+};
 $('share').onclick = async () => {
-  try { await navigator.share({ files: [S.resultFile] }); } catch {  }
+  try { await navigator.share({ files: [S.resultFile] }); } catch {}
 };
 
 $('back').onclick = () => { $('result').pause(); openReview(S.t); };
@@ -1228,11 +1456,14 @@ function resetAll() {
   if (S.resultUrl) URL.revokeObjectURL(S.resultUrl);
   if (S.previewUrl) URL.revokeObjectURL(S.previewUrl);
   S.srcUrl = S.resultUrl = S.previewUrl = S.resultFile = S.img = S.file = null;
+  S.found = [];
   S.tracks = [];
   S.frames = [];
   S.raw = [];
   S.manual = [];
   S.sel = null;
+  S.split = null;
+  $('splitBtn').classList.remove('on');
   S.t = 0;
   S.start = S.first = 0;
   $('fatal').hidden = true;
@@ -1252,6 +1483,7 @@ $('restart2').onclick = goHome;
 
 for (const ev of ['dragenter', 'dragover']) $('pickLabel').addEventListener(ev, (e) => { e.preventDefault(); $('pickLabel').classList.add('over'); });
 for (const ev of ['dragleave', 'drop']) $('pickLabel').addEventListener(ev, (e) => { e.preventDefault(); $('pickLabel').classList.remove('over'); });
+for (const ev of ['dragover', 'drop']) window.addEventListener(ev, (e) => e.preventDefault());
 $('pickLabel').addEventListener('drop', (e) => {
   const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
   if (f && !$('file').disabled) loadFile(f);

@@ -22,7 +22,7 @@
     <h2>What Anonymizer does</h2>
     <ul class="facts">
       <li><b>On your device.</b> The video is analysed in the browser. It is sent nowhere.</li>
-      <li><b>A solid black square.</b> Painted on the frame before it is saved again: the face is not blurred or covered, it is no longer in the file.</li>
+      <li><b>A solid black square.</b> Painted on the frame before it is saved again: the face is not blurred or covered, it is no longer in the file. An optional blur exists, but it keeps colours and shape, so the black square stays the default.</li>
       <li><b>No traces.</b> Location, date and phone model, often kept in the file, are removed.</li>
       <li><b>No account.</b> No ads, no analytics. Like any site, the host (Cloudflare) sees who connects to anonymizer.nvp.qzz.io, never the videos.</li>
     </ul>
@@ -46,7 +46,7 @@
     <h2>If you can code</h2>
     <ul class="facts">
       <li><b>Public code.</b> Free licence: <a href="https://github.com/yakuzaax/anonymizer">github.com/yakuzaax/anonymizer</a>. The site serves the same readable files, nothing hidden.</li>
-      <li><b>No trace of the face.</b> <code>test/test-no-trace.mjs</code> takes two videos identical except for the faces and applies the same masks: the output files are byte-for-byte identical. No watermark can lead back to the face.</li>
+      <li><b>No trace of the face.</b> <code>test/test-no-trace.mjs</code> takes two videos identical except for the faces and applies the same masks (black square or emoji): the output files are byte-for-byte identical. No watermark can lead back to the face.</li>
       <li><b>Nothing sent.</b> The page forbids the browser from connecting to any site other than anonymizer.nvp.qzz.io.</li>
       <li><b>Original libraries.</b> ONNX Runtime and Mediabunny: <code>test/verify-vendor.sh</code> checks they match the official releases. The detection model is YuNet, retrained to see better at night: the recipe is public.</li>
     </ul>
@@ -57,6 +57,8 @@
     <p>No tool finds every face: a profile, a partly hidden or very small face can be missed. Tap the image to add a mask by hand.</p>
     <p>The square hides the face, not clothes, tattoos, gait, place or voice. Sound is kept by default: turn it off with the “Sound” button.</p>
   </section>
+
+  <p>New here? <a href="how.html">How it works</a> explains every step.</p>
 
   <a class="cta" href="./">Mask a video<span>→</span></a>
 </main>

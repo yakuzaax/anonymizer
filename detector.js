@@ -62,9 +62,9 @@ export async function createDetector(base) {
     const rgba = ctx.getImageData(0, 0, pw, ph).data;
     const n = pw * ph;
 
-    let sum = 0;
-    for (let y = 0; y < dh; y++) for (let x = 0, p = y * pw * 4; x < dw; x++, p += 4) sum += rgba[p] + rgba[p + 1] + rgba[p + 2];
-    const passes = sum / (3 * dw * dh) < DARK ? [null, NIGHT_LUT] : [null];
+    let sum = 0, count = 0;
+    for (let y = 0; y < dh; y += 4) for (let x = 0, p = y * pw * 4; x < dw; x += 4, p += 16) { sum += rgba[p] + rgba[p + 1] + rgba[p + 2]; count++; }
+    const passes = sum / (3 * count) < DARK ? [null, NIGHT_LUT] : [null];
     const found = [];
     for (const lut of passes) {
       for (let i = 0, p = 0; i < n; i++, p += 4) {

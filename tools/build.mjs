@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const dist = join(root, 'dist');
 const files = [
-  'index.html', 'legal.html', 'verify.html', '404.html', '_headers', 'favicon.ico',
+  'index.html', 'legal.html', 'verify.html', 'how.html', '404.html', '_headers', 'favicon.ico',
   'style.css', 'app.js', 'detector.js', 'detect-worker.js', 'icons/mark.png',
   'models/yunet.onnx', 'models/LICENSE-yunet.txt',
   'vendor/fonts/fonts.css', 'vendor/fonts/archivo-latin.woff2', 'vendor/fonts/archivo-latin-ext.woff2',

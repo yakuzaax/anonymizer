@@ -31,6 +31,7 @@
   <footer class="foot">
     <label class="fast"><input type="checkbox" id="fast"> Fast mode (may miss very small faces)</label>
     <nav class="links">
+      <a href="how.html">How it works</a>
       <a href="verify.html">Verify Anonymizer</a>
       <a href="https://github.com/yakuzaax/anonymizer">Source code</a>
       <a href="legal.html">Legal notice</a>
@@ -69,12 +70,24 @@
       <div class="track"><canvas id="tracks"></canvas><input type="range" id="time" min="0" max="1" step="0.01" value="0" aria-label="Position in video"></div>
       <button type="button" id="next" class="step" title="Next frame">›</button>
     </div>
+    <div class="tools">
+      <div class="seg" role="group" aria-label="Mask margin">
+        <button type="button" class="tool" data-margin="0">Tight</button>
+        <button type="button" class="tool on" data-margin="1">Normal</button>
+        <button type="button" class="tool" data-margin="2">Wide</button>
+      </div>
+      <button type="button" class="tool" id="splitBtn" aria-pressed="false">Compare</button>
+      <button type="button" class="tool" id="reportBtn" aria-expanded="false">Report</button>
+    </div>
     <div class="row">
       <button type="button" id="play" class="ctl videoOnly" title="Play">▶</button>
-      <button type="button" id="styleBtn" class="ctl" title="Mask style"><span class="sq"></span></button>
+      <button type="button" id="styleBtn" class="ctl" title="Mask style" aria-haspopup="true" aria-expanded="false"><span class="sq"></span></button>
       <button type="button" id="audioBtn" class="ctl mono videoOnly on" title="Keep sound">SOUND</button>
       <button type="button" id="export" class="go">Export</button>
     </div>
+    <div class="stylePanel" id="stylePanel" hidden></div>
+    <div class="reportPanel" id="reportPanel" hidden><dl class="reportList" id="reportList"></dl><div class="jumps" id="reportJump"></div></div>
+    <p class="note" id="styleNote" hidden>Blur keeps colours and shape visible. A solid square hides more.</p>
     <p class="note videoOnly" id="audioNote">Sound kept. A voice can identify someone too.</p>
   </div>
 </section>
@@ -102,6 +115,7 @@
     </div>
     <span class="strong" id="doneCheck">Watch all of it before posting.</span>
     <span class="note">The mask hides faces, not clothes, tattoos, voice or place. No tool protects 100%.</span>
+    <dl class="reportList" id="doneReport" aria-label="Scan report"></dl>
   </div>
   <div class="bottom">
     <a class="cta" id="download">Download<span>↓</span></a>

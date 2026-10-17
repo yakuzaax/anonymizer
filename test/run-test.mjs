@@ -110,7 +110,6 @@ out.export = await run(`${TRUTH} const S = window.anonymizer.S; const v = docume
       return found; })() };`);
 
 if (save) {
-
   const size = await run(`return window.anonymizer.S.resultFile.size;`);
   const parts = [];
   for (let o = 0; o < size; o += 1 << 20) {

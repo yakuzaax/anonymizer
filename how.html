@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#e6e6e6">
+<meta name="description" content="How Anonymizer finds, follows and hides faces, step by step, entirely inside your browser.">
+<title>Anonymizer · how it works</title>
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="paper">
+<main class="verif how">
+  <header class="top"><a class="brand" href="./">Anonymizer</a></header>
+
+  <h1 class="title">How<br>it<br>works.</h1>
+  <p class="strong">Everything happens in your browser. Here is each step, from the file you pick to the file you save, with the real numbers used by the code.</p>
+
+  <ol class="flow">
+    <li><b>Open</b><span>your file stays on the device</span></li>
+    <li><b>Read</b><span>30 images per second</span></li>
+    <li><b>Detect</b><span>a face model, in the background</span></li>
+    <li><b>Follow</b><span>link detections over time</span></li>
+    <li><b>Review</b><span>you fix what is wrong</span></li>
+    <li><b>Export</b><span>a new file, masks painted in</span></li>
+  </ol>
+
+  <section>
+    <h2>1 · Loading the tool</h2>
+    <p>The page, the fonts, the face-detection model (YuNet, 338 KB) and its engine (ONNX Runtime, compiled to WebAssembly) all come from this one address. A security rule in the page, the Content-Security-Policy, forbids the browser from contacting any other address, so even a bug could not send anything out.</p>
+    <p>The model runs in background workers: up to 3 (2 on iPhone), always leaving one processor core free so the page stays smooth. If workers are not available, it runs on the page itself, more slowly.</p>
+  </section>
+
+  <section>
+    <h2>2 · Reading your file</h2>
+    <p>Your file is never uploaded. The browser opens it through a private local address (<code>blob:</code>) that exists only in this tab.</p>
+    <p>Videos are scaled so the longest side is at most 1920 px, photos 4096 px. A video is analysed at 30 images per second. To do it quickly, Anonymizer plays the video and copies each image as it appears. If the phone skips images, playback slows down automatically. If playback is not possible, it jumps to each image one by one, which is slower but sure.</p>
+  </section>
+
+  <section>
+    <h2>3 · Finding faces</h2>
+    <p>Each image is given to YuNet, a small face-detection network. The image is padded to a multiple of 32 px, then the network looks at it at three scales (steps of 8, 16 and 32 px) and proposes boxes, each with a score between 0 and 1. Overlapping boxes on the same face are merged (overlap above 30%).</p>
+    <ul class="facts">
+      <li><b>Dark scenes.</b> If an image is very dark (average brightness under 40 out of 255), it is analysed twice: as is, and brightened with a square-root curve. The model was also retrained on night photos.</li>
+      <li><b>A second look.</b> Every third image, and whenever a box is doubtful, the image is analysed again at one third of the size. Large faces close to the camera are sometimes recognised better when smaller.</li>
+      <li><b>Fast mode.</b> Analyses at 1280 px instead of 1920 px. Quicker on a slow phone, but it may miss very small faces.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>4 · Deciding what is a face</h2>
+    <p>A box is kept only if its score is high enough, and the bar depends on its size. Small faces are hard to see, and an extra mask costs little, so the bar is low. Large boxes with a medium score are usually false alarms (a wall, a tree), so the bar is high.</p>
+    <svg class="chart" viewBox="0 0 340 190" role="img" aria-label="Minimum score needed, by face size">
+      <path class="axis" d="M40 10V150H330"/>
+      <path class="grid" d="M40 118H330M40 86H330M40 54H330"/>
+      <path class="line" d="M40 134H110V120L195 38H330"/>
+      <path class="tick" d="M110 150v6M195 150v6"/>
+      <text x="34" y="154" text-anchor="end">0</text>
+      <text x="34" y="122" text-anchor="end">.3</text>
+      <text x="34" y="58" text-anchor="end">.85</text>
+      <text x="34" y="138" text-anchor="end">.2</text>
+      <text x="110" y="172" text-anchor="middle">12%</text>
+      <text x="195" y="172" text-anchor="middle">25%</text>
+      <text x="335" y="182" text-anchor="end">face width / shorter side of the image</text>
+      <text x="46" y="22">minimum score</text>
+    </svg>
+    <p>Under 12% of the shorter side, 0.20 is enough. Between 12% and 25%, the bar rises from 0.30 to 0.85. Above 25%, it stays at 0.85. One exception: a box from 0.30 is accepted if the second look at one third of the size finds the same face.</p>
+  </section>
+
+  <section>
+    <h2>5 · Following faces over time</h2>
+    <p>Detections are linked from one image to the next. A new box continues an existing face if it is close (within about 1.6 times the average size of the two boxes) and of similar size (less than 2.5 times bigger or smaller). A face may disappear for up to 20 images (0.67 s) and still be the same one.</p>
+    <svg class="chart" viewBox="0 0 340 120" role="img" aria-label="Detections, gap filled by interpolation, and extra margin at both ends">
+      <path class="axis" d="M10 80H330"/>
+      <rect class="ghost" x="22" y="48" width="16" height="26"/>
+      <rect class="ghost" x="40" y="48" width="16" height="26"/>
+      <rect class="solid" x="58" y="48" width="16" height="26"/>
+      <rect class="solid" x="76" y="46" width="16" height="26"/>
+      <rect class="solid" x="94" y="44" width="16" height="26"/>
+      <rect class="fill" x="112" y="42" width="16" height="26"/>
+      <rect class="fill" x="130" y="40" width="16" height="26"/>
+      <rect class="fill" x="148" y="38" width="16" height="26"/>
+      <rect class="fill" x="166" y="36" width="16" height="26"/>
+      <rect class="solid" x="184" y="34" width="16" height="26"/>
+      <rect class="solid" x="202" y="32" width="16" height="26"/>
+      <rect class="ghost" x="220" y="32" width="16" height="26"/>
+      <rect class="ghost" x="238" y="32" width="16" height="26"/>
+      <text x="39" y="112" text-anchor="middle">+4</text>
+      <text x="84" y="112" text-anchor="middle">detected</text>
+      <text x="147" y="112" text-anchor="middle">filled</text>
+      <text x="201" y="112" text-anchor="middle">detected</text>
+      <text x="237" y="112" text-anchor="middle">+4</text>
+    </svg>
+    <ul class="facts">
+      <li><b>Gaps are filled.</b> Between two detections, the box is interpolated, so a face missed for a few images is still masked.</li>
+      <li><b>Early and late.</b> Each mask starts 4 images before the first detection and ends 4 images after the last (about 0.13 s), because a face is often hard to see as it enters or leaves.</li>
+      <li><b>Both directions.</b> Once a face is confirmed, the tracker also looks backward in time: weaker detections just before it, at the same place and size, are attached to the same face. A face turning towards the camera or walking into the frame is masked from its first faint trace, not only from the moment it became clear.</li>
+      <li><b>Smoothing.</b> Each box is merged with its neighbours so masks do not shake.</li>
+      <li><b>Margin.</b> The final box is larger than the face, plus a few pixels, so hair, chin and ears are covered: 15% (Tight), 30% (Normal, the default) or 60% (Wide). You choose in the review step, and your edits are kept when you change it.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>6 · Your review</h2>
+    <p>You see the result before anything is saved. Tap a mask to remove it (from that image on), or restore it. Tap anywhere else to add a mask by hand, drag it, resize it, or extend it to the whole video. Scrub the timeline or step image by image to check, and use Compare to slide between the masked and the original picture. If there is no mask at all, Anonymizer says so and asks you to confirm before it exports.</p>
+    <p>The style is a solid black square, an emoji or, as an option, a blur. The blur shrinks the face area to about 6 by 6 cells and scales it back up: detail is gone, but colours and rough shape remain, so it hides less than a solid square and is marked as such.</p>
+    <p>The Report button lists how many faces were tracked, which ones to double-check (seen only briefly or with a low score, each with a button that jumps to it), how many masks you added or edited, and the share of frames that carry a mask. The same report is shown again at the end.</p>
+    <p>For the black square and emoji, For an emoji, the black square is always painted first and the emoji on top, so the face can never show through the emoji's rounded edges.</p>
+  </section>
+
+  <section>
+    <h2>7 · Export</h2>
+    <p>The saved file is built from scratch: every image is redrawn, the masks are painted on it, and the images are encoded again. The original file is never copied, so nothing in it can leak through.</p>
+    <svg class="chart" viewBox="0 0 340 100" role="img" aria-label="Original image, painted mask, new encoded file">
+      <rect class="orig" x="14" y="14" width="64" height="64"/>
+      <circle class="head" cx="46" cy="42" r="14"/>
+      <path class="arrow" d="M88 46h30l-6-6m6 6l-6 6"/>
+      <rect class="orig" x="130" y="14" width="64" height="64"/>
+      <rect class="fill" x="32" y="28" width="28" height="28" transform="translate(116 0)"/>
+      <path class="arrow" d="M204 46h30l-6-6m6 6l-6 6"/>
+      <rect class="file" x="246" y="14" width="64" height="64"/>
+      <rect class="fill" x="264" y="28" width="28" height="28"/>
+      <text x="46" y="94" text-anchor="middle">original</text>
+      <text x="162" y="94" text-anchor="middle">masked</text>
+      <text x="278" y="94" text-anchor="middle">new file</text>
+    </svg>
+    <ul class="facts">
+      <li><b>Fast export.</b> Where the browser supports it (WebCodecs), each image is decoded, masked and encoded again, as H.264 in an MP4 file, or as VP9 in a WebM file on devices without an H.264 encoder. Bitrate is between 2.5 and 10 Mbit/s depending on the size. This runs faster than real time.</li>
+      <li><b>Standard export.</b> Otherwise, the video is played in real time and the masked picture is recorded. The screen must stay on.</li>
+      <li><b>Sound.</b> Kept by default, since a voice can identify someone too. Turn it off with the Sound button and the file has no audio at all.</li>
+      <li><b>Metadata.</b> Location, phone model and original dates are not copied. In the MP4 header, creation dates and handler names are also zeroed.</li>
+      <li><b>Photos.</b> Redrawn and saved as JPEG at 92% quality. Orientation is applied and EXIF data (location, camera) is dropped.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8 · What is kept</h2>
+    <p>Nothing. No cookie, no <code>localStorage</code>, no <code>sessionStorage</code>, no IndexedDB, no service worker, no analytics. Working data lives in memory and disappears when you close the tab or choose another file. The only thing that remains is the file you save yourself.</p>
+  </section>
+
+  <section class="limits">
+    <h2>Limits, honestly</h2>
+    <p>A detector can miss faces: profiles, faces partly hidden by a hand or a hat, very small or very blurry faces, faces at the edge of the image. That is why the review step exists. Watch the whole result before posting.</p>
+    <p>A mask hides a face, not clothes, tattoos, a distinctive voice, a place or a name said aloud.</p>
+  </section>
+
+  <section>
+    <h2>Where to read it</h2>
+    <ul class="facts">
+      <li><code>app.js</code> · screens, analysis loop, tracking, review, export.</li>
+      <li><code>detector.js</code> · model call, night pass, overlap merging, score rule.</li>
+      <li><code>detect-worker.js</code> · runs the detector in the background.</li>
+      <li><code>vendor/</code> · ONNX Runtime and Mediabunny, unmodified. <code>models/</code> · the YuNet model.</li>
+    </ul>
+    <p>Everything is on <a href="https://github.com/yakuzaax/anonymizer">github.com/yakuzaax/anonymizer</a>. To check the privacy claims yourself, see <a href="verify.html">Verify Anonymizer</a>.</p>
+  </section>
+
+  <a class="cta" href="./">Mask a video<span>→</span></a>
+</main>
+</body>
+</html>

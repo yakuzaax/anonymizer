@@ -5,7 +5,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 ok=0
 
-files="index.html legal.html verify.html 404.html _headers favicon.ico style.css app.js detector.js detect-worker.js icons/mark.png
+files="index.html legal.html verify.html how.html 404.html _headers favicon.ico style.css app.js detector.js detect-worker.js icons/mark.png
   models/yunet.onnx models/LICENSE-yunet.txt vendor/fonts/fonts.css vendor/fonts/archivo-latin.woff2 vendor/fonts/archivo-latin-ext.woff2
   vendor/fonts/jetbrains-mono-latin.woff2 vendor/fonts/jetbrains-mono-latin-ext.woff2 vendor/fonts/LICENSE.txt
   vendor/ort/ort.wasm.min.mjs vendor/ort/ort-wasm-simd-threaded.mjs vendor/ort/ort-wasm-simd-threaded.wasm vendor/ort/LICENSE.txt

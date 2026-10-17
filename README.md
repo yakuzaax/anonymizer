@@ -46,14 +46,19 @@ You don't have to take our word for it. Each point below can be checked without 
 
 ## How it works
 
-- Static site, no build step for the code: `index.html`, `style.css`, `app.js`.
+- Static site, no build step for the code: `index.html`, `style.css`, `app.js`. A step-by-step explanation for visitors is on `how.html`.
 - Face detection: the YuNet_n model, retrained to see better at night (`models/README.md`), run by ONNX Runtime Web (`detector.js`, `detect-worker.js`),
   on several cores in parallel. Very dark frames are analysed twice, as is and brightened, and the results are merged.
-- Tracking: one box per face from frame to frame, enlarged by 30%, extended a few frames before and after.
+- Tracking: one box per face from frame to frame, in both directions (a confirmed face also pulls in the weaker detections just before it), enlarged by 30%, extended a few frames before and after.
 - Fast export: the original file is decoded frame by frame, each frame is masked then re-encoded
-  by the phone's encoder (WebCodecs, through Mediabunny). Faster than real time.
+  by the device's encoder (WebCodecs, through Mediabunny): H.264 in MP4, or VP9 in WebM when there is no H.264 encoder.
+  Faster than real time.
 - Fallback export, when the browser cannot do the fast one: the masked image is recorded while it plays
   (canvas + MediaRecorder). Add `?slow` to the URL to force this mode.
+- Margin around each face: Tight (+15%), Normal (+30%), Wide (+60%), changeable in the review step without losing manual edits.
+- Compare: a draggable split between the masked picture (left) and the original (right), shown on screen only.
+- Mask style: a solid black square (default), one of 24 emojis painted on top of the black square (the face never shows through), or an optional blur (6 by 6 cells, labelled as less safe).
+- Scan report: faces tracked, faces to double-check with a jump button, masks added or edited, share of frames with a mask. Shown in the review step and again at the end.
 - Photos: JPEG.
 - No cookie, no `localStorage`, no `sessionStorage`, no IndexedDB, no service worker, no cache written by the code:
   opening the page creates nothing on the device, and closing the tab leaves nothing behind.
