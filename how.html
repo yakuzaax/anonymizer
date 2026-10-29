@@ -30,7 +30,7 @@
   <section>
     <h2>1 · Loading the tool</h2>
     <p>The page, the fonts, the face-detection model (YuNet, 338 KB) and its engine (ONNX Runtime, compiled to WebAssembly) all come from this one address. A security rule in the page, the Content-Security-Policy, forbids the browser from contacting any other address, so even a bug could not send anything out.</p>
-    <p>The model runs in background workers: up to 3 (2 on iPhone), always leaving one processor core free so the page stays smooth. If workers are not available, it runs on the page itself, more slowly.</p>
+    <p>The model runs in background workers: up to 3 (2 on iPhone, 4 on a computer with 8 cores and 8 GB), always leaving one processor core free so the page stays smooth. If workers are not available, it runs on the page itself, more slowly.</p>
   </section>
 
   <section>
@@ -97,15 +97,18 @@
       <li><b>Gaps are filled.</b> Between two detections, the box is interpolated, so a face missed for a few images is still masked.</li>
       <li><b>Early and late.</b> Each mask starts 4 images before the first detection and ends 4 images after the last (about 0.13 s), because a face is often hard to see as it enters or leaves.</li>
       <li><b>Both directions.</b> Once a face is confirmed, the tracker also looks backward in time: weaker detections just before it, at the same place and size, are attached to the same face. A face turning towards the camera or walking into the frame is masked from its first faint trace, not only from the moment it became clear.</li>
-      <li><b>Smoothing.</b> Each box is merged with its neighbours so masks do not shake.</li>
-      <li><b>Margin.</b> The final box is larger than the face, plus a few pixels, so hair, chin and ears are covered: 15% (Tight), 30% (Normal, the default) or 60% (Wide). You choose in the review step, and your edits are kept when you change it.</li>
+      <li><b>Smoothing.</b> The position and size of each face are smoothed over about 2 images before and after (no delay, since the whole video is already analysed), and the box is widened just enough to still contain every detection. Masks do not shake.</li>
+      <li><b>Between images.</b> The mask is computed for the exact moment of each output image, between two analysed images, so a 60 images per second video gets 60 different masks, not 30 repeated ones.</li>
+      <li><b>Fast movement.</b> A face is looked for where its speed says it should be, not only where it was, so a quick pan does not cut one face into several.</li>
+      <li><b>Best tracking (optional).</b> Slower: the weaker detections are checked again on a zoom, and every gap inside a face's track is searched again, image by image, on a zoom around where the face should be.</li>
+      <li><b>Size.</b> The final box is larger than the face, plus a few pixels, so hair, chin and ears are covered. A slider in the review step sets it from 100% to 200% of the detected face (130% by default), and your edits are kept when you change it.</li>
     </ul>
   </section>
 
   <section>
     <h2>6 · Your review</h2>
     <p>You see the result before anything is saved. Tap a mask to remove it (from that image on), or restore it. Tap anywhere else to add a mask by hand, drag it, resize it, or extend it to the whole video. Scrub the timeline or step image by image to check, and use Compare to slide between the masked and the original picture. If there is no mask at all, Anonymizer says so and asks you to confirm before it exports.</p>
-    <p>The style is a solid black square, an emoji or, as an option, a blur. The blur shrinks the face area to about 6 by 6 cells and scales it back up: detail is gone, but colours and rough shape remain, so it hides less than a solid square and is marked as such.</p>
+    <p>The style is a solid black square, an emoji or, as an option, a blur. The blur shrinks the face area to a grid of cells (about 6 by 6 by default, from 3 by 3 to 11 by 11 with the strength slider) and scales it back up: detail is gone, but colours and rough shape remain, so it hides less than a solid square and is marked as such.</p>
     <p>The Report button lists how many faces were tracked, which ones to double-check (seen only briefly or with a low score, each with a button that jumps to it), how many masks you added or edited, and the share of frames that carry a mask. The same report is shown again at the end.</p>
     <p>For the black square and emoji, For an emoji, the black square is always painted first and the emoji on top, so the face can never show through the emoji's rounded edges.</p>
   </section>

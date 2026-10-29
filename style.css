@@ -413,3 +413,21 @@ button { font: inherit; color: inherit; }
 .reportPanel .tool { border-color: var(--ink); color: var(--ink); }
 .reportPanel .tool:active { background: var(--ink); color: var(--paper); }
 #doneReport { margin-top: 6px; padding-top: 14px; border-top: 1px solid #c4c4c4; }
+
+.files { flex: none; display: flex; align-items: stretch; gap: 6px; padding: 8px 12px; background: var(--ink); }
+.files[hidden] { display: none; }
+.files .step { width: 36px; height: 36px; }
+.files .tool { flex: none; display: flex; align-items: center; }
+.fname { flex: 1; min-width: 0; display: flex; align-items: center; font: 500 11px/1 var(--mono); color: var(--paper); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.size { display: flex; align-items: center; gap: 8px; flex: 1 1 180px; font: 700 11px/1 var(--mono); text-transform: uppercase; }
+.size input { flex: 1; min-width: 80px; margin: 0; accent-color: var(--paper); height: 36px; }
+.size output { min-width: 4ch; text-align: right; }
+#scanFile:empty, #exportFile:empty { display: none; }
+.results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.results[hidden] { display: none; }
+.results li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 2px solid var(--ink); }
+.results li.on { background: var(--ink); color: var(--paper); }
+.results .pickRes { all: unset; cursor: pointer; flex: 1; min-width: 0; font: 500 12px/1.3 var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.results .link { align-self: center; flex: none; }
+.cta b { font-weight: inherit; }
+[hidden] { display: none !important; }

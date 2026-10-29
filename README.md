@@ -1,15 +1,17 @@
 # Anonymizer
 
-**Anonymizer** — by NovaPulse Studio, part of the NVP app suite. No data collection, no trace.
+**Anonymizer**, by NovaPulse Studio, part of the NVP app suite. No data collection, no trace.
 
 Hide the faces in a video or photo before posting it, right in the phone's browser.
 Nothing is sent to a server: no account, no analytics, no third-party file loaded from another site.
 
 Live at [anonymizer.nvp.qzz.io](https://anonymizer.nvp.qzz.io).
+
 ## Origin
 
 Anonymizer is a rework of **[vesky](https://github.com/Nctrn17/vesky)** (Nctrn17), released under the same AGPL-3.0 licence.
 Detection, tracking, export and the privacy guarantees come from that project.
+
 ## Why
 
 Videos of protests and blockades are used to identify the people filmed. A blur or a mosaic
@@ -17,7 +19,7 @@ can be undone by AI. A solid box cannot: there is no image left underneath.
 
 ## What it does
 
-1. You pick a video or a photo.
+1. You pick one or several videos and photos.
 2. The video is analysed 30 times per second, and a black box (or an emoji on a black box) is placed on every face, on every frame.
 3. You check: add a mask where a face was missed, remove one placed by mistake.
 4. The file is fully re-encoded: the location, date and phone model stored in the original file are gone.
@@ -55,9 +57,11 @@ You don't have to take our word for it. Each point below can be checked without 
   Faster than real time.
 - Fallback export, when the browser cannot do the fast one: the masked image is recorded while it plays
   (canvas + MediaRecorder). Add `?slow` to the URL to force this mode.
-- Margin around each face: Tight (+15%), Normal (+30%), Wide (+60%), changeable in the review step without losing manual edits.
+- Tracking: smoothed with no delay, computed at the exact time of each output image, with an optional slower "Best tracking" mode that searches gaps again.
+- Mask size: a slider from 100% to 200% of the detected face (130% by default), changeable in the review step without losing manual edits.
+- Several files: up to 20 per batch, reviewed one by one, exported together (a `.zip` when there are several).
 - Compare: a draggable split between the masked picture (left) and the original (right), shown on screen only.
-- Mask style: a solid black square (default), one of 24 emojis painted on top of the black square (the face never shows through), or an optional blur (6 by 6 cells, labelled as less safe).
+- Mask style: a solid black square (default), one of 24 emojis painted on top of the black square (the face never shows through), or an optional blur (a grid of 3 by 3 to 11 by 11 cells, 6 by 6 by default, set with a strength slider, labelled as less safe).
 - Scan report: faces tracked, faces to double-check with a jump button, masks added or edited, share of frames with a mask. Shown in the review step and again at the end.
 - Photos: JPEG.
 - No cookie, no `localStorage`, no `sessionStorage`, no IndexedDB, no service worker, no cache written by the code:

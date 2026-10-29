@@ -22,7 +22,7 @@
       <p class="tagline" id="footNote">Nothing leaves your phone.</p>
     </div>
     <label class="square pick" id="pickLabel" aria-disabled="true">
-      <input type="file" id="file" accept="video/*,image/*" disabled>
+      <input type="file" id="file" accept="video/*,image/*" multiple disabled>
       <span class="plus" aria-hidden="true">+</span>
       <span class="pickText" id="pickText">Loading…</span>
     </label>
@@ -30,6 +30,7 @@
   <p id="homeError" class="error" hidden></p>
   <footer class="foot">
     <label class="fast"><input type="checkbox" id="fast"> Fast mode (may miss very small faces)</label>
+    <label class="fast"><input type="checkbox" id="quality"> Best tracking (slower: smoother, fewer gaps)</label>
     <nav class="links">
       <a href="how.html">How it works</a>
       <a href="verify.html">Verify Anonymizer</a>
@@ -44,6 +45,7 @@
   <header class="top"><span class="brand">Anonymizer</span></header>
   <div class="middle">
     <span class="big" id="scanText">0%</span>
+    <span class="note" id="scanFile"></span>
     <div class="square frame" id="scanFrame">
       <span class="tag">Current frame</span>
       <span class="fill up" id="scanBar"></span>
@@ -54,12 +56,19 @@
 
 <section id="s-review" class="screen ink" hidden>
   <p class="banner" id="hint">Tap a face to hide or unhide its mask.</p>
+  <div class="files" id="files" hidden>
+    <button type="button" id="fPrev" class="step" title="Previous file">‹</button>
+    <span class="fname" id="fName"></span>
+    <button type="button" id="fDrop" class="tool" title="Leave this file out">Remove</button>
+    <button type="button" id="fNext" class="step" title="Next file">›</button>
+  </div>
   <div class="stage" id="stage">
     <canvas id="view"></canvas>
     <button class="link small" id="restoreAll" type="button" hidden></button>
     <div class="maskBar" id="maskBar" hidden>
       <button type="button" id="mMinus" title="Smaller">−</button>
       <button type="button" id="mPlus" title="Larger">+</button>
+      <button type="button" id="mFollow" title="Follow what is under this mask" class="videoOnly">⌖</button>
       <button type="button" id="mAll" title="Whole video" class="videoOnly">∞</button>
       <button type="button" id="mDelete" title="Remove" class="sep">×</button>
     </div>
@@ -71,11 +80,8 @@
       <button type="button" id="next" class="step" title="Next frame">›</button>
     </div>
     <div class="tools">
-      <div class="seg" role="group" aria-label="Mask margin">
-        <button type="button" class="tool" data-margin="0">Tight</button>
-        <button type="button" class="tool on" data-margin="1">Normal</button>
-        <button type="button" class="tool" data-margin="2">Wide</button>
-      </div>
+      <label class="size"><span>Size</span><input type="range" id="size" min="100" max="200" step="1" value="130"><output id="sizeOut" for="size">130%</output></label>
+      <button type="button" class="tool" id="sizeAll" title="Use this size for every file" hidden>Apply to all</button>
       <button type="button" class="tool" id="splitBtn" aria-pressed="false">Compare</button>
       <button type="button" class="tool" id="reportBtn" aria-expanded="false">Report</button>
     </div>
@@ -88,6 +94,7 @@
     <div class="stylePanel" id="stylePanel" hidden></div>
     <div class="reportPanel" id="reportPanel" hidden><dl class="reportList" id="reportList"></dl><div class="jumps" id="reportJump"></div></div>
     <p class="note" id="styleNote" hidden>Blur keeps colours and shape visible. A solid square hides more.</p>
+    <label class="size" id="blurRow" hidden><span>Blur</span><input type="range" id="blur" min="3" max="10" step="1" value="7" aria-label="Blur strength"><output id="blurOut" for="blur">7</output></label>
     <p class="note videoOnly" id="audioNote">Sound kept. A voice can identify someone too.</p>
   </div>
 </section>
@@ -100,6 +107,7 @@
       <span class="fill side" id="exportBar"></span>
     </div>
     <span class="strong">Keep the screen on.</span>
+    <span class="note" id="exportFile"></span>
     <span class="note" id="exportText"></span>
   </div>
   <button class="link" id="exportCancel" type="button">Cancel</button>
@@ -115,14 +123,15 @@
     </div>
     <span class="strong" id="doneCheck">Watch all of it before posting.</span>
     <span class="note">The mask hides faces, not clothes, tattoos, voice or place. No tool protects 100%.</span>
+    <ul class="results" id="results" hidden></ul>
     <dl class="reportList" id="doneReport" aria-label="Scan report"></dl>
   </div>
   <div class="bottom">
-    <a class="cta" id="download">Download<span>↓</span></a>
+    <a class="cta" id="download"><b id="downloadText">Download</b><span>↓</span></a>
     <div class="links">
       <button class="link" id="back" type="button">Edit masks</button>
       <button class="link" id="share" type="button" hidden>Save or share</button>
-      <button class="link" id="restart2" type="button">Another file</button>
+      <button class="link" id="restart2" type="button">Other files</button>
     </div>
     <span class="note" id="doneInfo"></span>
   </div>
